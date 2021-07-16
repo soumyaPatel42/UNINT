@@ -50,7 +50,7 @@ public class SYS_DataCache {
                 mappings = new List<FieldSetting__mdt>();
                 mappings = [Select Id,StaticValue__c,IsChild__c, ObjectSetting__r.ObjectApiName__c, ObjectApiName__c, FieldApiName__c , Key__c, RestResource__c, Direction__c, ParentField__c, 
                             ObjectSetting__r.Direction__c,ObjectSetting__r.Trigger_Condition__c,ObjectSetting__r.TriggerEvents__c, ObjectSetting__r.ResourcePath__c , ObjectSetting__r.ApexHandler__c 
-                            from FieldSetting__mdt /*where Is_Active__c=true*/ where FieldApiName__c != null];
+                            from FieldSetting__mdt /*where Is_Active__c=true where FieldApiName__c != null*/];
             }
             return mappings;
         }

@@ -212,7 +212,7 @@ public class SYS_Transformer {
             if(jsonObj.get(nodeList[0]) == null) {
                 jsonObj.put(nodeList[0], new Map<String, Object>()); 
             }
-            ((Map<String, Object>)jsonObj.get(nodeList[0])).put(nodeList[1], getFieldValues(obj, mapping.FieldApiName__c));
+            ((Map<String, Object>)jsonObj.get(nodeList[0])).put(nodeList[1], getFieldValues(obj, mapping, mapping.FieldApiName__c));
             
             return jsonObj;
         }
@@ -408,12 +408,15 @@ public class SYS_Transformer {
         
     }
     
-    public static Object getFieldValues(sObject obj, String fieldAPIName){
+    public static Object getFieldValues(sObject obj, FieldSetting__mdt mapping, String fieldAPIName){
         //TODO - handle case - Account."CreatedBy".Name, where CreatedBy is not an sobject
         System.debug('\n\n++++++++++++++ \n obj:'+obj+'\n++++++++++++++\n');
         System.debug('\n\n++++++++++++++ \n fieldAPIName:'+fieldAPIName+'\n++++++++++++++\n');
         String fvalue='';
-        if(fieldAPIName.contains('.')){
+        if(fieldAPIName == null){
+            fvalue = mapping.StaticValue__c;
+        }
+        else if(fieldAPIName.contains('.')){
             List<String> splitedFields = fieldAPIName.split('\\.');
             try{
                 for(Integer i = 0; i < splitedFields.size() - 1; i++){
