@@ -5,14 +5,21 @@ public class SYS_DataCache {
     private static Map<String, List<FieldSetting__mdt>> objectFieldSettingMap;
     private static Map<String, Map<String, List<FieldSetting__mdt>>> childFieldSettingMap;
     private static List<FieldSetting__mdt> mappings;
-     
-    private static String context;
+    
+    //TODO - HB -  Fill the objectsettings
+    private static ObjectSetting__mdt objectSetting;
+    
+    //TODO - 'Account' is hardcoded
+    private static String context = 'Account';
     
     public static String ObjectContext{
         get{ return context;}
         //set{context = value;}
     }
 	
+    //TODO - add a method checkAndLoad , called from every getter, single query on grand child and get 
+    //all meta data records from 
+    //grand-parents, parents and do the maps.
     
     public static Map<Id, sObject> oldMap{
         get{ return oldObjMap;}
@@ -43,7 +50,7 @@ public class SYS_DataCache {
                 mappings = new List<FieldSetting__mdt>();
                 mappings = [Select Id,StaticValue__c,IsChild__c, ObjectSetting__r.ObjectApiName__c, ObjectApiName__c, FieldApiName__c , Key__c, RestResource__c, Direction__c, ParentField__c, 
                             ObjectSetting__r.Direction__c,ObjectSetting__r.Trigger_Condition__c,ObjectSetting__r.TriggerEvents__c, ObjectSetting__r.ResourcePath__c , ObjectSetting__r.ApexHandler__c 
-                            from FieldSetting__mdt where Is_Active__c=true /*where FieldApiName__c != null*/];
+                            from FieldSetting__mdt /*where Is_Active__c=true*/ where FieldApiName__c != null];
             }
             return mappings;
         }

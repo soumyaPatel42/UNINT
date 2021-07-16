@@ -3,8 +3,17 @@ public class SYS_OutBoundBatchHandler {
     public static FINAL Integer TEXT_AREA_MAX_SIZE = 131072;
     public static FINAL Integer MAX_DATA_FIELDS = 10;
     
+    //TODO - change to invokable for process builder and flows
+    
+    private static void areParentsReady() {
+        //check all the xxx.SYS_Key__c values and make sure they are not null
+    }
 	public static void processInsert(List<sObject> objs) {
      	//chunk the batch into pieces
+     	//TODO - check if areParentsReady() then 
+     	//If yes, then generate json and store it
+     	//If not, then log as pending_parent without generating json
+     	//A batch job will sweep through pending records and generate json for them and change the status
      	SYS_Transformer.getRequestJson(objs);
     }
     
@@ -15,6 +24,7 @@ public class SYS_OutBoundBatchHandler {
         SYS_DataCache.newMap = newMap;
         //TODO get apexhandler from metadata for the Object
         String apexHandler = 'SYS_BaseApexHandler_Ext';
+        
         if(SYS_DataCache.FieldSettingMappings[0].ObjectSetting__r.ApexHandler__c!=NULL && 
           SYS_DataCache.FieldSettingMappings[0].ObjectSetting__r.ApexHandler__c!=''){
               
