@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>IMS_SIU</label>
+    <protected>true</protected>
+    <values>
+        <field>ApexHandler__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>AuthenticationType__c</field>
+        <value xsi:type="xsd:string">Oauth</value>
+    </values>
+    <values>
+        <field>BaseAPIEndPoint__c</field>
+        <value xsi:type="xsd:string">NotNeeded</value>
+    </values>
+    <values>
+        <field>EscapeCharacter__c</field>
+        <value xsi:type="xsd:string">$</value>
+    </values>
+    <values>
+        <field>JWT_algo__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>JWT_aud__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>JWT_iss__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>JWT_privateKey__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>JWT_sub__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>JWT_target_audience__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>JWT_token_url__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>NamedCredential__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>UpdateMethod__c</field>
+        <value xsi:type="xsd:string">POST</value>
+    </values>
+</CustomMetadata>
