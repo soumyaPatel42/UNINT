@@ -1,5 +1,5 @@
-public class SYS_Transformer {
-	/*
+public virtual class SYS_Transformer {
+    /*
     public IntegrationData {
         sObject obj
         Map<String, Object> jsonTree;
@@ -20,10 +20,16 @@ public class SYS_Transformer {
         get{return childRecordsProcess;}
         set{childRecordsProcess = value;}
     }
+    public static String childRoot = '';
+    public static String childRootElement {
+        get{return childRoot;}
+        set{childRoot = value;} 
+    }
+    public static List<Map<String, Object>> childFlatKeyList = new List<Map<String, Object>>();
     
     public static Map<Id, String> getRequestJson(List<sObject> objsList) {
         //This will take list of object and generate outbound JSON body
-        
+        SYS_DataCache.contextSet = objsList;
         if(objsList == null || objsList.size() == 0) {
             return null;
         }
@@ -70,12 +76,21 @@ public class SYS_Transformer {
         
         
         for(FieldSetting__mdt mapping : SYS_DataCache.FieldSettingMappings) {
-            if(mapping.FieldApiName__c == NULL) continue;
+            if(mapping.FieldApiName__c == NULL) {
+                if(mapping.ParentField__c != null){
+                    if(childMappingsMap.get(mapping.ObjectApiName__c) == null) {
+                        childMappingsMap.put(mapping.ObjectApiName__c, new List<FieldSetting__mdt>()); 
+                    }
+                    childMappingsMap.get(mapping.ObjectApiName__c).add(mapping);
+                    System.debug(mapping.StaticValue__c+' static json##key==' + mapping.ObjectApiName__c + ' value==' +mapping);
+                }
+                continue;
+            }
             
             System.debug('\n\n -------------- \n Object check:'+mapping.ObjectApiName__c +' vs. '+primaryObj+'\n -------------- \n\n');
             if(mapping.ObjectApiName__c == primaryObj){
                 System.debug('\n\n -------------- \n Object check:'+mapping.ObjectApiName__c +' vs. '+primaryObj+'\n -------------- \n\n');
-                    if(primaryObjFieldsMap.get(mapping.ObjectApiName__c) == null) {
+                if(primaryObjFieldsMap.get(mapping.ObjectApiName__c) == null) {
                     primaryObjFieldsMap.put(mapping.ObjectApiName__c, new List<String>()); 
                 }
 				primaryObjFieldsMap.get(mapping.ObjectApiName__c).add(mapping.FieldApiName__c);
@@ -86,11 +101,13 @@ public class SYS_Transformer {
                     childMappingsMap.put(mapping.ObjectApiName__c, new List<FieldSetting__mdt>()); 
                 }
                 childMappingsMap.get(mapping.ObjectApiName__c).add(mapping);
+                System.debug(mapping.StaticValue__c+' static json##key==' + mapping.ObjectApiName__c + ' value==' +mapping);
                 
                 if(childFieldsMap.get(mapping.ObjectApiName__c) == null) {
                     childFieldsMap.put(mapping.ObjectApiName__c, new List<String>()); 
                 }
 				childFieldsMap.get(mapping.ObjectApiName__c).add(mapping.FieldApiName__c);
+                System.debug('static jsonsecond##key==' + mapping.ObjectApiName__c + ' value==' +mapping.FieldApiName__c);
       
             } else {
                 parentMappings.add(mapping);   
@@ -119,10 +136,12 @@ public class SYS_Transformer {
                      ' from ' + 
                      primaryObj + 
                      ' where Id in :parentIds';
+                    
+            System.debug('query res@@=='+qry);
        
         	objs = Database.query(qry);
         }
-        
+        // System.debug('query res@@=='+objs[0].getSObject('Account').get('SYS_Key__c'));
          
         
         for(String objectName : childFieldsMap.keySet()) {
@@ -141,32 +160,37 @@ public class SYS_Transformer {
         }
 		
         System.debug('hbdebug parentChildObjMap '+ JSON.serialize(parentChildObjMap));
-        for(sObject obj : objs) {
-            Map<String, Object> jsonMapObject = getRequestJsonSingle(false,obj,SYS_DataCache.FieldSettingMappings);
-           
+        for(sObject obj : objs) {  //looping through quoteline
+            Map<String, Object> jsonMapObject = getRequestJsonSingle(false,obj,SYS_DataCache.FieldSettingMappings, parentChildObjMap);
+           System.debug('received data==' + jsonMapObject);
             String objId = (String)obj.get('Id');
             //now fill children - childMappingsMap.get(objectName)[0].
             //Map<Id, Map<String, List<sObject>>> parentChildObjMap
-            if(parentChildObjMap.get(objId) != null) {
-                 for(String childObjectName : parentChildObjMap.get(objId).keySet()) {
-                    if(jsonMapObject.get(childMappingsMap.get(childObjectName)[0].RestResource__c) == null) {
-                       jsonMapObject.put(childMappingsMap.get(childObjectName)[0].RestResource__c, new List<Map<String, Object>>()); 
-                    }
-                    System.debug('hbdebug getRequestJsonSingle child - '+ childObjectName);
-                    for(sObject childObj : parentChildObjMap.get(objId).get(childObjectName)) {
-                        
-                       ((List<Map<String, Object>>)jsonMapObject.get((String)childMappingsMap.get(childObjectName)[0].RestResource__c)).add(getRequestJsonSingle(true,childObj, childMappingsMap.get(childObjectName))); 
+            if(parentChildObjMap.get(objId) != null ) {
+                 for(String childObjectName : parentChildObjMap.get(objId).keySet()) { //each quoteLine from map
+                    if(childMappingsMap.get(childObjectName)[0].ChildRootElement__c != null){
+                        if(jsonMapObject.get(childMappingsMap.get(childObjectName)[0].ChildRootElement__c) == null) {
+                        jsonMapObject.put(childMappingsMap.get(childObjectName)[0].ChildRootElement__c, new List<Map<String, Object>>()); 
+                        } 
+                        System.debug('hbdebug getRequestJsonSingle child - '+ childObjectName);
+                    
+                        for(sObject childObj : parentChildObjMap.get(objId).get(childObjectName)) {
+                            System.debug('Obj added==' + getRequestJsonSingle(true,childObj, childMappingsMap.get(childObjectName) , parentChildObjMap));
+                            System.debug('Obj jsonMapObject==' + jsonMapObject + ' objectKey==' + (String)childMappingsMap.get(childObjectName)[0].ChildRootElement__c);
+                           ((List<Map<String, Object>>)jsonMapObject.get((String)childMappingsMap.get(childObjectName)[0].ChildRootElement__c)).add(getRequestJsonSingle(true,childObj, childMappingsMap.get(childObjectName), parentChildObjMap)); 
+                            //Need to debug as line should be an array.
+                        }
                     }
                 }
             }
-            
+            System.debug('Obj jsonMapObject==' + JSON.serialize(jsonMapObject));
             jsonMap.put(objId, JSON.serialize(jsonMapObject));
             
         }
         return jsonMap;
     }
     
-    public static Map<String, Object> getRequestJsonSingle(Boolean considerChild,sObject obj , List<FieldSetting__mdt> mappings) {
+    public static Map<String, Object> getRequestJsonSingle(Boolean considerChild,sObject obj , List<FieldSetting__mdt> mappings, Map<Id, Map<String, List<sObject>>> mapVal) {
         Map<String, Object> jsonMapObject = new Map<String, Object>();
         System.debug('hbdebug getRequestJsonSingle obj'+ JSON.serialize(obj));
         System.debug('hbdebug getRequestJsonSingle mapping'+ JSON.serialize(mappings));
@@ -177,7 +201,14 @@ public class SYS_Transformer {
             if(mapping.IsChild__c == considerChild){
                 //TODO handle .'s and nested
                 System.debug('hbdebug getRequestJsonSingle mapping.Key__c'+ JSON.serialize(mapping.Key__c));
-                List<String> nodeList = mapping.Key__c.split('\\.');
+                List<String> nodeList = new List<String>();
+                for(String node : mapping.Key__c.split('\\.')) {
+                    if(SYS_DataCache.ESCAPE_CHAR != null) {
+                        nodeList.add(node.replace(SYS_DataCache.ESCAPE_CHAR, '.'));
+                    } else {
+                        nodeList.add(node);
+                    }
+                }
                 System.debug('hbdebug getRequestJsonSingle nodeList'+ JSON.serialize(nodeList));
                 if(nodeList.size() < 2) {
                     System.debug('hbdebug getRequestJsonSingle nodeList[0]'+ JSON.serialize(nodeList[0]));
@@ -185,8 +216,11 @@ public class SYS_Transformer {
                     //TODO mapping.FieldApiName__c can be parent queries on standard/custom
                     if(mapping.FieldApiName__c==NULL){
                         jsonMapObject.put(nodeList[0], mapping.StaticValue__c);
+                    } else if (mapping.ObjectApiName__c != mapping.ObjectSetting__r.ObjectApiName__c && mapping.IsChild__c == false) {
+                        System.debug('inequality executed??' + mapVal.get(obj.Id).get(mapping.ObjectApiName__c)[0].get(mapping.FieldApiName__c));
+                        jsonMapObject.put(nodeList[0], mapVal.get(obj.Id).get(mapping.ObjectApiName__c)[0].get(mapping.FieldApiName__c));
                     }
-                    else{
+                    else {
                         jsonMapObject.put(nodeList[0], obj.get(mapping.FieldApiName__c));
                     }
                     
@@ -194,6 +228,7 @@ public class SYS_Transformer {
                 else {
                     System.debug('hbdebug getRequestJsonSingle else'+ JSON.serialize(nodeList[0]));
                     jsonMapObject = constructNestedObject(obj, mapping, nodeList, jsonMapObject);
+                    System.debug('returned json=='+jsonMapObject);
                 }
             }
         }
@@ -212,15 +247,20 @@ public class SYS_Transformer {
             if(jsonObj.get(nodeList[0]) == null) {
                 jsonObj.put(nodeList[0], new Map<String, Object>()); 
             }
-            ((Map<String, Object>)jsonObj.get(nodeList[0])).put(nodeList[1], getFieldValues(obj, mapping, mapping.FieldApiName__c));
-            
+            System.debug('error ++'+jsonObj.get(nodeList[0]));
+            if(mapping.FieldApiName__c == 'Problem_Label__c' ) {
+                ((Map<String, Object>)jsonObj.get(nodeList[0])).put(nodeList[1], new List<Object>{getFieldValues(obj, mapping, mapping.FieldApiName__c)});
+            } else
+                ((Map<String, Object>)jsonObj.get(nodeList[0])).put(nodeList[1], getFieldValues(obj, mapping, mapping.FieldApiName__c));
+            System.debug('Allfields@@=='+nodeList[1]+ ' -- ' + getFieldValues(obj, mapping, mapping.FieldApiName__c));
             return jsonObj;
         }
         else if(nodeList.size() > 0) {
             if(jsonObj.get(nodeList[0]) == null) {
-               
+                
                 List<String> nodeSubList = subList(nodeList, 1);
                 Map<String, Object> intermediateJsonObj = new Map<String, Object>();
+                System.debug('inside node sublist=='+nodeSubList+ '@@==');
                 intermediateJsonObj = constructNestedObject(obj, mapping, nodeSubList, new Map<String, Object>());
                 jsonObj.put(nodeList[0], intermediateJsonObj);
                 
@@ -229,6 +269,7 @@ public class SYS_Transformer {
                 Map<String, Object> intermediateJsonObj = new Map<String, Object>();
                 Map<String, Object> intermediateTwoJsonObj = new Map<String, Object>();
                 intermediateTwoJsonObj = (Map<String, Object>)jsonObj.get(nodeList[0]);
+                System.debug('inside node sublist else==' + ' @@==');
                 intermediateJsonObj = constructNestedObject(obj, mapping, subList(nodeList, 1), intermediateTwoJsonObj);
                 
                 ((Map<String, Object>)jsonObj.get(nodeList[0])).put(nodeList[1], intermediateJsonObj.get(nodeList[1]));
@@ -251,32 +292,146 @@ public class SYS_Transformer {
     public static List<sObject> getSObjectsToUpsert(List<String> jsonList, String resource) {
         List<sObject> objectsToUpsert = new List<sObject>();
         //TODO filters based on INBOUND, OUTBOUND etc
-        List<FieldSetting__mdt> mappings = [Select Id, FieldApiName__c, ObjectApiName__c,Key__c, RestResource__c, Direction__c,
-                                           ObjectSetting__r.Object__r.QualifiedApiName , ObjectSetting__r.Direction__c, ObjectSetting__r.ResourcePath__c , ObjectSetting__r.ApexHandler__c 
-                                           from FieldSetting__mdt where RestResource__c = :resource and Direction__c!='OUTBOUND'];
+        // List<FieldSetting__mdt> mappings = [Select Id, ChildFieldApiName__c, FieldApiName__c, ObjectApiName__c,Key__c, RestResource__c, Direction__c,
+        //                                    ObjectSetting__r.Object__r.QualifiedApiName , ObjectSetting__r.Direction__c, ObjectSetting__r.ResourcePath__c , ObjectSetting__r.ApexHandler__c 
+        //                                    from FieldSetting__mdt where RestResource__c = :resource and Direction__c!='OUTBOUND' AND ChildRootElement__c = null ];
         
+        List<FieldSetting__mdt> mappings = new List<FieldSetting__mdt>();
+        for(FieldSetting__mdt mapItr : SYS_DataCache.AllInboundFieldSetting) {
+            if(mapItr.RestResource__c == resource && mapItr.ChildRootElement__c == null) {
+                mappings.add(mapItr);
+            }
+        }
+
         Map<String, FieldSetting__mdt> mapOfPaths = new Map<String, FieldSetting__mdt>();
         
         //If the current processing is not for child records the primary object is the Object setting value
         String sObjectApiName = null;
         if(!SYS_Transformer.isChild && mappings.size()>0){
-            sObjectApiName = mappings[0].ObjectSetting__r.Object__r.QualifiedAPIName;
+            // sObjectApiName = mappings[0].ObjectSetting__r.Object__r.QualifiedAPIName;
+            sObjectApiName = mappings[0].ObjectApiName__c;
+            SYS_DataCache.sObjectApiName = sObjectApiName;  
         }
-        //--M String sObjectApiName = null;
+        //--M String sObjectApiName = null; 
+        // SYS_Constants.load();
+        //TODO - To automate selection of integration setting
+        String integrationSetting = '';  //IMS_SIU Middleware_hl7
+        SYS_Transformer.isChild = false;
+        
+        //TODO - refactor the below code
+        String rootKey;
+        for(String jsonObj : jsonList) {
+            if(jsonObj != null || jsonObj != ''){
+                Map<String, Object> mapDeserialized = (Map<String, Object>)JSON.deserializeUntyped(jsonObj);
+            	rootKey = new List<String>(mapDeserialized.keySet())[0];
+                break; 
+            }
+        }
+        if(rootKey.contains('SIU')){
+            integrationSetting = 'IMS_SIU';
+        } else {
+            integrationSetting = 'Middleware_hl7';
+        }
         for(FieldSetting__mdt mapping : mappings) {
-            mapOfPaths.put(mapping.Key__c, mapping);
+            String newKey = mapping.Key__c;
+            mapOfPaths.put(newKey, mapping);
+            System.debug('mapofPath== '+newKey + ' value==' + mapping);
             //-- M sObjectApiName = mapping.ObjectSetting__r.Object__r.QualifiedAPIName;
         }
         
         for(String jsonObj : jsonList) {
-            
+            Map<String, Object> mapDeserialized = (Map<String, Object>)JSON.deserializeUntyped(jsonObj);
+            rootKey = new List<String>(mapDeserialized.keySet())[0];
             objectsToUpsert.add(parseJsonToObject(jsonObj, sObjectApiName, mapOfPaths));
         }
+        
         
        	System.debug('\n\n ########### \n Child objects to upsert:'+objectsToUpsert+'\n ########### \n\n');
         return objectsToUpsert;
     }
-    
+    public static List<sObject> parseJsonToChildObject(String jsonObj, String sObjectApiName, Map<String, FieldSetting__mdt> mapOfPaths) {
+        Map<String, Object> flatKeyMap = makeJsonIntoKeyValuePairs(jsonObj);
+        if(SYS_Transformer.isChild){
+        	System.debug('\n\n++++++++++++ flatKeyMap: '+flatKeyMap);
+            System.debug('\n\n++++++++++++ mapOfPaths: '+mapOfPaths);
+ 	   }
+        
+		System.debug('\n\n++++++++++++ B4 sObjectApiName: '+sObjectApiName+' when child process is: '+SYS_Transformer.isChild);
+        //We are processing array so identify obj name from flatkeymao
+        if(sObjectApiName ==null && flatKeyMap.size()>0) {
+            //mapOfPaths map doesn't contain outbound fieldsetting. Therefore the key to get the objectname should be a NON outbound key
+            
+            for(String s:flatKeyMap.keySet()){
+                if(mapOfPaths.get(s)!=null){
+                    if(mapOfPaths.get(s).Direction__c!='OUTBOUND'){
+                        sObjectApiName =  mapOfPaths.get(s).ObjectApiName__c;            
+                    }
+                }
+            }
+            /*
+            FieldSetting__mdt fieldMapping = mapOfPaths.get((new List<String>(flatKeyMap.keySet()))[0]);
+            if(fieldMapping!=null)
+            	sObjectApiName = fieldMapping.ObjectApiName__c;
+			*/
+        }
+        System.debug('\n\n++++++++++++ After sObjectApiName23: '+sObjectApiName);
+        
+        //sObjectApiName is still empty means there are no outbound fields for the object as part of array processing
+        if(sObjectApiName=='' || sObjectApiName==null) return null;
+
+        List<sObject> objectList = new List<sObject>();
+        
+        // sObject sObj = Schema.getGlobalDescribe().get(sObjectApiName).newSObject();
+        
+        if(childRootElement != '' && SYS_Transformer.isChild) {
+            System.debug('individual obj==');
+
+            for(Map<String, Object> obj : childFlatKeyList) {
+                sObject sObj = Schema.getGlobalDescribe().get(sObjectApiName).newSObject();
+
+                for(String key : mapOfPaths.keySet()) {
+
+                    FieldSetting__mdt mapping = mapOfPaths.get(key);
+                    String fieldObj = mapping.ObjectApiName__c;
+                    //sObj.put('SYS_Key__c', '001');
+                    System.debug('\n\nRunning for '+mapping.ChildFieldApiName__c+' on:'+sObjectApiName);
+                    
+                    if(mapping.FieldApiName__c==null){
+                        
+                        continue;
+                    }
+           
+                    if(fieldObj == sObjectApiName && SYS_Transformer.isChild) {
+                        SObjectType r = ((SObject)(Type.forName('Schema.'+sObjectApiName).newInstance())).getSObjectType();
+                        DescribeSObjectResult d = r.getDescribe();
+                        System.debug('\n\nField Type for else '+mapping.ChildFieldApiName__c);
+                        String fieldType = d.fields
+                                .getMap()
+                                .get(mapping.ChildFieldApiName__c)
+                                .getDescribe()
+                                .getType()+'';
+                        System.debug('\n\nField Type for '+mapping.ChildFieldApiName__c+' :'+fieldType);
+                        System.debug('\n flatmapchild=='+obj.get(key));
+                        //TODO add other field types
+                        if(fieldType=='DATE'){
+                            try{
+                                sObj.put(mapping.ChildFieldApiName__c, date.valueOf((String)obj.get(key)));
+                            }catch(Exception e){
+                                
+                            }
+                        } else if (fieldType == 'STRING') {
+                            sObj.put(mapping.ChildFieldApiName__c, String.valueof(obj.get(key)));
+                        }
+                        else{
+                            sObj.put(mapping.ChildFieldApiName__c, obj.get(key));
+                        }
+                    }
+                }
+                objectList.add(sObj);
+            }
+        }
+        return objectList;
+    }
     //
     public static sObject parseJsonToObject(String jsonObj, String sObjectApiName, Map<String, FieldSetting__mdt> mapOfPaths) {
         Map<String, Object> flatKeyMap = makeJsonIntoKeyValuePairs(jsonObj);
@@ -287,7 +442,7 @@ public class SYS_Transformer {
         
 		System.debug('\n\n++++++++++++ B4 sObjectApiName: '+sObjectApiName+' when child process is: '+SYS_Transformer.isChild);
         //We are processing array so identify obj name from flatkeymao
-        if(sObjectApiName ==null && flatKeyMap.size()>0){
+        if(sObjectApiName ==null && flatKeyMap.size()>0) {
             //mapOfPaths map doesn't contain outbound fieldsetting. Therefore the key to get the objectname should be a NON outbound key
             
             for(String s:flatKeyMap.keySet()){
@@ -309,39 +464,45 @@ public class SYS_Transformer {
         if(sObjectApiName=='' || sObjectApiName==null) return null;
         
         sObject sObj = Schema.getGlobalDescribe().get(sObjectApiName).newSObject();
+        System.debug('flatKeyMap=='+JSON.serialize(flatKeyMap));
+        System.debug('mapofPath=='+JSON.serialize(mapOfPaths));
         for(String key : mapOfPaths.keySet()) {
             
             FieldSetting__mdt mapping = mapOfPaths.get(key);
             String fieldObj = mapping.ObjectApiName__c;
             //sObj.put('SYS_Key__c', '001');
-            System.debug('\n\nRunning for '+mapping.FieldApiName__c+' on:'+sObjectApiName);
+            System.debug('\n\nRunning for '+mapping.FieldApiName__c+' on:'+sObjectApiName + ' '+fieldObj+ 'key=='+key);
             
             if(mapping.FieldApiName__c==null){
                 
                 continue;
             }
    
-            if(fieldObj == sObjectApiName){
+            if(fieldObj == sObjectApiName && !SYS_Transformer.isChild){
                 SObjectType r = ((SObject)(Type.forName('Schema.'+sObjectApiName).newInstance())).getSObjectType();
                 DescribeSObjectResult d = r.getDescribe();
+                System.debug('\n\nField Type for if '+mapping.FieldApiName__c);
                 String fieldType = d.fields
                         .getMap()
                         .get(mapping.FieldApiName__c)
                         .getDescribe()
                         .getType()+'';
                 System.debug('\n\nField Type for '+mapping.FieldApiName__c+' :'+fieldType);
+                System.debug('\n flatmap=='+flatKeyMap.get(key) + 'key =='+key);
                 //TODO add other field types
                 if(fieldType=='DATE'){
                     try{
-                    	sObj.put(mapping.FieldApiName__c, date.valueOf((String)flatKeyMap.get(mapping.Key__c)));
+                    	sObj.put(mapping.FieldApiName__c, date.valueOf((String)flatKeyMap.get(key)));
                     }catch(Exception e){
                         
                     }
+                } else if (fieldType == 'STRING') {
+                    sObj.put(mapping.FieldApiName__c, String.valueof(flatKeyMap.get(key)));
                 }
                 else{
-                    sObj.put(mapping.FieldApiName__c, flatKeyMap.get(mapping.Key__c));
+                    sObj.put(mapping.FieldApiName__c, flatKeyMap.get(key));
                 }
-            }
+            } 
             
             
             //TODO - make sure that external id is filled - Done with a new fieldsetting metada record
@@ -363,6 +524,7 @@ public class SYS_Transformer {
         //Handle arrays later
         for(String key : jsonObject.keySet()) {
             Object currentObj = jsonObject.get(key);
+            System.debug('##key='+key);
             if (currentObj instanceof Map<String, Object>) {
                 Map<String, Object> child = (Map<String, Object>)currentObj;
                 parents.add(key);
@@ -372,34 +534,50 @@ public class SYS_Transformer {
             } else {
                 
                 String parentKey = '';
-                if(parents != null && parents.size() > 0) {
+                System.debug('params=='+key+' =='+parents.size()+' res=='+result);
+                if(parents.size() > 0) {
                     parentKey = String.join(parents, '.');
                 } 
+                System.debug('parentkey=='+parentKey + ' @@custom obj is==' +currentObj);
                 if (currentObj instanceof Decimal) {
                 //Add
-                	result.put(parentKey +'.'+ key, (Decimal) currentObj);
+                	result.put(String.isBlank(parentKey) ? key : parentkey+'.'+ key, (Decimal) currentObj);
                 } else if (currentObj instanceof Integer) {
                 //Add
-                    result.put(parentKey +'.'+ key, (Integer) currentObj);
+                    result.put(String.isBlank(parentKey) ? key : parentkey+'.'+ key, (Integer) currentObj);
                 }
                 else if (currentObj instanceof String) {
                     //Add
-                    result.put(parentKey +'.'+ key,  currentObj);
+                    result.put(String.isBlank(parentKey) ? key : parentkey+'.'+ key,  currentObj);
                 } else if (currentObj instanceof Boolean) {
                     //Add
-                    result.put(parentKey +'.'+ key, (Boolean) currentObj);
+                    result.put(String.isBlank(parentKey) ? key : parentkey+'.'+ key, (Boolean) currentObj);
                 } 
                 else if (currentObj == null) {
                     //TODO - Verify accuracy on what needs to be done
-                    result.put(parentKey +'.'+ key, null);
+                    result.put(String.isBlank(parentKey) ? key : parentkey+'.'+ key, null);
                 }
-                else{
+                else if (currentObj instanceof List<Object> && SYS_Transformer.isChild && key == childRootElement) {
                 	List<String> childRecList = new List<String>();
-                    for(Object obj:(List<Object>)currentObj){
-                        String objString = JSON.serialize(obj);
-                        childRecList.add(objString);
+                    result.clear();
+                    if (((List<Object>)currentObj).size() > 0) {
+                        for(Object obj:(List<Object>)currentObj){
+                            if(obj instanceof Map<String, Object>) {
+                                System.debug('obj list inside@@ parent=='+result);
+                                recursiveJsonParser((Map<String, Object>)obj, new List<String>(), result);
+                                System.debug('result after=='+result);
+                                childFlatKeyList.add(result.clone());
+                                System.debug('check**'+childFlatKeyList[0]);
+                            }
+                            result.clear();
+                            String objString = JSON.serialize(obj);
+                            childRecList.add(objString);
+                        }
+                        System.debug('in else=='+result);
+                        //ID jobID = System.enqueueJob(new SYS_QueueableJSONTOSObject(childRecList,key,''));
+                        //System.debug('job id is==='+jobID);
                     }
-                    ID jobID = System.enqueueJob(new SYS_QueueableJSONTOSObject(childRecList,key,''));
+                    
                 }
             }
             
@@ -428,7 +606,8 @@ public class SYS_Transformer {
                return null;
             }
             
-        }else if(obj.get(fieldAPIName)!=null){
+        } 
+        else if(obj.get(fieldAPIName) != null){
             return obj.get(fieldAPIName);
         }
         return fvalue;
@@ -440,5 +619,4 @@ public class SYS_Transformer {
         }
         return sList;
     }
-
 }
